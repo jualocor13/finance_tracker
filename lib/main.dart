@@ -1,8 +1,17 @@
 import 'package:flutter/material.dart';
 import 'screens/dashboard_screen.dart';
 import 'models/transaction.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
-void main() {
+void main() async {
+  // Inicializa Hive
+  await Hive.initFlutter();
+
+  // Registra el adaptador de Transaction
+  Hive.registerAdapter(TransactionAdapter());
+
+  // Abre la caja (base de datos local)
+  await Hive.openBox<Transaction>('transactionsBox');
   runApp(const MyApp());
 }
 
