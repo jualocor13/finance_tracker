@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -12,6 +13,8 @@ class StatisticsScreen extends StatefulWidget {
 
 class _StatisticsScreenState extends State<StatisticsScreen> {
   late Box<Transaction> transactionBox;
+  int touchedExpenseIndex = -1;
+  int touchedIncomeIndex = -1;
 
   @override
   void initState() {
@@ -38,120 +41,191 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 
   double get totalExpenses =>
-      transactions.where((t) => t.isExpense).fold(0, (sum, t) => sum + t.amount);
+      transactions.where((t) => t.isExpense).fold(0.0, (sum, t) => sum + t.amount);
 
   double get totalIncomes =>
-      transactions.where((t) => !t.isExpense).fold(0, (sum, t) => sum + t.amount);
+      transactions.where((t) => !t.isExpense).fold(0.0, (sum, t) => sum + t.amount);
 
-  List<PieChartSectionData> buildPieData(Map<String, double> data, bool isExpense) {
-    final total = data.values.fold(0.0, (sum, v) => sum + v); // Cambiado a 0.0 para que sea un double
-      final colors = [
-        Colors.blueAccent,
-        Colors.orangeAccent,
-        Colors.greenAccent,
-        Colors.purpleAccent,
-        Colors.redAccent,
-        Colors.tealAccent,
-      ];
+  List<PieChartSectionData> buildPieData(
+    Map<String, double> data,
+    bool isExpense,
+    int touchedIndex,
+  ) {
+    final total = data.values.fold(0.0, (sum, v) => sum + v);
+    final colors = [
+      Colors.blueAccent,
+      Colors.orangeAccent,
+      Colors.greenAccent,
+      Colors.purpleAccent,
+      Colors.redAccent,
+      Colors.tealAccent,
+    ];
 
-      int colorIndex = 0;
-      return data.entries.map((entry) {
-        final percentage = ((entry.value / total) * 100).toStringAsFixed(1);
-        final section = PieChartSectionData(
-          color: colors[colorIndex++ % colors.length],
-          value: entry.value,
-          title: '${entry.key}\n$percentage%',
-          radius: 80,
-          titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-        );
-        return section;
-      }).toList();
-    }
+    int colorIndex = 0;
+    int index = 0;
+    return data.entries.map((entry) {
+      final isTouched = index == touchedIndex;
+      final percentage = ((entry.value / total) * 100).toStringAsFixed(1);
+      final radius = isTouched ? 100.0 : 80.0; // se agranda al tocar
+      final fontSize = isTouched ? 14.0 : 12.0;
+      final section = PieChartSectionData(
+        color: colors[colorIndex++ % colors.length],
+        value: entry.value,
+        title: '${entry.key}\n$percentage%',
+        radius: radius,
+        titleStyle: TextStyle(
+          fontSize: fontSize,
+          fontWeight: FontWeight.bold,
+          color: Colors.black87,
+        ),
+      );
+      index++;
+      return section;
+    }).toList();
+  }
 
-    @override
+  @override
   Widget build(BuildContext context) {
     final expensesData = getExpensesByCategory();
     final incomesData = getIncomesByCategory();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Estadísticas')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: transactions.isEmpty
-            ? const Center(child: Text('No hay transacciones para mostrar.'))
-            : SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    const Text(
-                      'Gastos por Categoría',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      height: 250,
-                      child: PieChart(
-                        PieChartData(
-                          sections: buildPieData(expensesData, true),
-                          centerSpaceRadius: 40,
-                          sectionsSpace: 2,
+      appBar: AppBar(
+        title: const Text('Estadísticas'),
+      ),
+      body: transactions.isEmpty
+          ? const Center(child: Text('No hay transacciones para mostrar.'))
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  // 🧠 Animación de entrada
+                  AnimatedScale(
+                    scale: 1.0,
+                    duration: const Duration(milliseconds: 800),
+                    curve: Curves.easeOutBack,
+                    child: Column(
+                      children: [
+                        const Text(
+                          'Gastos por Categoría',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-                    const Text(
-                      'Ingresos por Categoría',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      height: 250,
-                      child: PieChart(
-                        PieChartData(
-                          sections: buildPieData(incomesData, false),
-                          centerSpaceRadius: 40,
-                          sectionsSpace: 2,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 40),
-                    Card(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      elevation: 4,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          children: [
-                            Text(
-                              'Total de Gastos: \$${totalExpenses.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                  color: Colors.red, fontSize: 16),
-                            ),
-                            Text(
-                              'Total de Ingresos: \$${totalIncomes.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                  color: Colors.green, fontSize: 16),
-                            ),
-                            const Divider(),
-                            Text(
-                              'Balance: \$${(totalIncomes - totalExpenses).toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          height: 250,
+                          child: PieChart(
+                            PieChartData(
+                              sections: buildPieData(
+                                  expensesData, true, touchedExpenseIndex),
+                              centerSpaceRadius: 40,
+                              sectionsSpace: 2,
+                              pieTouchData: PieTouchData(
+                                touchCallback: (event, response) {
+                                  setState(() {
+                                    if (!event.isInterestedForInteractions ||
+                                        response == null ||
+                                        response.touchedSection == null) {
+                                      touchedExpenseIndex = -1;
+                                      return;
+                                    }
+                                    touchedExpenseIndex = response
+                                        .touchedSection!
+                                        .touchedSectionIndex;
+                                  });
+                                },
                               ),
                             ),
-                          ],
+                            swapAnimationDuration:
+                                const Duration(milliseconds: 500),
+                            swapAnimationCurve: Curves.easeOut,
+                          ),
                         ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  AnimatedOpacity(
+                    opacity: 1.0,
+                    duration: const Duration(milliseconds: 800),
+                    child: Column(
+                      children: [
+                        const Text(
+                          'Ingresos por Categoría',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          height: 250,
+                          child: PieChart(
+                            PieChartData(
+                              sections: buildPieData(
+                                  incomesData, false, touchedIncomeIndex),
+                              centerSpaceRadius: 40,
+                              sectionsSpace: 2,
+                              pieTouchData: PieTouchData(
+                                touchCallback: (event, response) {
+                                  setState(() {
+                                    if (!event.isInterestedForInteractions ||
+                                        response == null ||
+                                        response.touchedSection == null) {
+                                      touchedIncomeIndex = -1;
+                                      return;
+                                    }
+                                    touchedIncomeIndex = response
+                                        .touchedSection!
+                                        .touchedSectionIndex;
+                                  });
+                                },
+                              ),
+                            ),
+                            swapAnimationDuration:
+                                const Duration(milliseconds: 500),
+                            swapAnimationCurve: Curves.easeOut,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  Card(
+                    elevation: 4,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          Text(
+                            'Total de Gastos: \$${totalExpenses.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                                color: Colors.red, fontSize: 16),
+                          ),
+                          Text(
+                            'Total de Ingresos: \$${totalIncomes.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                                color: Colors.green, fontSize: 16),
+                          ),
+                          const Divider(),
+                          Text(
+                            'Balance: \$${(totalIncomes - totalExpenses).toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: (totalIncomes - totalExpenses) >= 0
+                                  ? Colors.green
+                                  : Colors.red,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-      ),
+            ),
     );
   }
 }
